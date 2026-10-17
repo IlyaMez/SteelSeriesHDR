@@ -1,0 +1,28 @@
+name: Bug report
+description: Report capture, lighting, or UI problems
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Include steps to reproduce, what you expected, and what you saw.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Setup
+      description: App version, Windows version, GPU/driver, monitor resolution, HDR status, capture/color modes, and whether GG Prism controls the Arena 7.
+    validations:
+      required: true
+  - type: textarea
+    id: comparison
+    attributes:
+      label: Lighting comparison
+      description: For color issues, describe the fixed Test lights result, rear hex values with Hold colors enabled, and actual rear colors.
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics (optional)
+      description: Paste text diagnostics after checking them for personal information.
+      render: text
