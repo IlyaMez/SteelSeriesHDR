@@ -16,6 +16,7 @@ $temporary = Join-Path $dist ([Guid]::NewGuid().ToString() + '.zip')
 $files = [ordered]@{
     'ArenaHDR.exe' = $exe
     'README.md' = (Join-Path $root 'README.md')
+    'assets/screenshot.jpg' = (Join-Path $root 'assets/screenshot.jpg')
     'THIRD_PARTY.md' = (Join-Path $root 'THIRD_PARTY.md')
     'CHANGELOG.md' = (Join-Path $root 'CHANGELOG.md')
     'PERFORMANCE.md' = (Join-Path $root 'PERFORMANCE.md')

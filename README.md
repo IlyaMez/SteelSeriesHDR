@@ -6,6 +6,8 @@ A small native Windows app that follows your screen's colors and drives the four
 
 **Preview release · Windows x64 · Arena 7 only**
 
+![Arena HDR app window showing screen sync and lighting controls](assets/screenshot.jpg)
+
 [Support development on Ko-fi](https://ko-fi.com/ilyamezerowsky)
 
 ## Get started
