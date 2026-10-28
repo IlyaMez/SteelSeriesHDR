@@ -14,6 +14,7 @@
 #include "capture.h"
 #include "output_gate.h"
 #include "screen_sampler.h"
+#include "startup.h"
 #include "version.h"
 #include "ui.h"
 
@@ -23,8 +24,9 @@ using namespace arena;
 using Clock = std::chrono::steady_clock;
 namespace {
 constexpr int IdMonitor = 101, IdStart = 102, IdStop = 103, IdTest = 104, IdPreview = 105,
-              IdBrightness = 106, IdExposure = 107, IdSmooth = 108, IdBars = 109, IdSwap = 110, IdCapture = 111, IdColorMode = 112, IdHold = 113, IdRichness = 114, IdDonate = 115;
+              IdBrightness = 106, IdExposure = 107, IdSmooth = 108, IdBars = 109, IdSwap = 110, IdCapture = 111, IdColorMode = 112, IdHold = 113, IdRichness = 114, IdDonate = 115, IdStartup = 116;
 constexpr UINT TrayMessage = WM_APP + 1;
+const UINT TaskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
 HWND window{}, statusControl{}, detailControl{}, monitorControl{}, startControl{}, testControl{}, stopControl{};
 HFONT font{}, titleFont{}, smallFont{}, headingFont{}, valueFont{};
 HBRUSH background{}, surface{};
@@ -42,8 +44,9 @@ std::mutex stateMutex;
 Colors latest{};
 Colors heldColors{};
 std::wstring status = L"Ready when you are.", details = L"Choose a display and start syncing, or test your four speaker lights.";
-std::wstring iniPath;
+std::wstring iniPath, executablePath;
 bool trayInstalled = false;
+HICON smallIcon{}, largeIcon{}, headerIcon{};
 int uiDpi = 96;
 int scaled(int value) { return MulDiv(value, uiDpi, 96); }
 RECT scaledRect(int left, int top, int right, int bottom) { return {scaled(left), scaled(top), scaled(right), scaled(bottom)}; }
@@ -56,11 +59,25 @@ void publishColors(Colors colors) { std::scoped_lock lock(stateMutex); latest = 
 std::wstring errorText(const std::exception& e) { return widen(e.what()); }
 void stop() { quitWorker = true; if (worker.joinable()) worker.join(); running = false; }
 
-void run(HMONITOR monitor, bool preview, bool test, CaptureBackend backend) {
+void run(HMONITOR monitor, bool preview, bool test, CaptureBackend backend, bool waitForDevice) {
     try {
         winrt::init_apartment(winrt::apartment_type::multi_threaded);
         Speaker speaker;
-        if (!preview) speaker.connect();
+        if (!preview) {
+            while (!quitWorker) {
+                try { speaker.connect(); break; }
+                catch (const std::exception& e) {
+                    if (!waitForDevice) throw;
+                    publish(errorText(e), L"Waiting for Arena 7 after sign-in. Retrying every 2 seconds; Stop cancels.");
+                    for (int i = 0; i < 20 && !quitWorker; ++i)
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+            }
+            if (quitWorker) {
+                publish(L"Stopped.", L"Start screen sync when your speakers are connected.");
+                running = false; return;
+            }
+        }
         if (test) {
             publish(L"Speaker test: left base red, left rear green, right base blue, right rear amber.", L"Test runs for 8 seconds; then leaves a soft white light.");
             Colors colors{{{180, 0, 0}, {0, 180, 0}, {0, 0, 180}, {180, 90, 0}}};
@@ -222,12 +239,14 @@ void saveSettings() {
     write(L"TrimBars", trimBars); write(L"SwapSides", swapSides);
     write(L"ColorMode", static_cast<int>(colorMode.load()));
     write(L"RearRichness", rearRichness);
+    write(L"PreviewOnly", SendMessageW(GetDlgItem(window, IdPreview), BM_GETCHECK, 0, 0) == BST_CHECKED);
     write(L"Monitor", static_cast<int>(SendMessageW(monitorControl, CB_GETCURSEL, 0, 0)));
     write(L"CaptureBackend", static_cast<int>(SendMessageW(GetDlgItem(window, IdCapture), CB_GETCURSEL, 0, 0)));
 }
 void loadSettings() {
-    wchar_t path[MAX_PATH]{}; GetModuleFileNameW(nullptr, path, MAX_PATH);
-    iniPath = std::wstring(path); iniPath = iniPath.substr(0, iniPath.find_last_of(L"\\/") + 1) + L"ArenaHDR.ini";
+    wchar_t path[32768]{}; GetModuleFileNameW(nullptr, path, static_cast<DWORD>(std::size(path)));
+    executablePath = path;
+    iniPath = executablePath.substr(0, executablePath.find_last_of(L"\\/") + 1) + L"ArenaHDR.ini";
     auto read = [](const wchar_t* key, int value) { return static_cast<int>(GetPrivateProfileIntW(L"Settings", key, value, iniPath.c_str())); };
     brightness = std::clamp(read(L"Brightness", 80), 0, 100);
     exposure = std::clamp(read(L"Exposure", 100), 10, 400);
@@ -236,7 +255,32 @@ void loadSettings() {
     colorMode = static_cast<ColorMode>(std::clamp(read(L"ColorMode", 0), 0, 2));
     rearRichness = std::clamp(read(L"RearRichness", 85), 0, 100);
 }
-void start(bool test) {
+void refreshStartup() {
+    HKEY key{}; bool enabled = false;
+    auto error = RegOpenKeyExW(HKEY_CURRENT_USER, startup::RunKey, 0, KEY_QUERY_VALUE, &key);
+    if (error == ERROR_SUCCESS) { error = startup::enabled(key, executablePath, enabled); RegCloseKey(key); }
+    SendMessageW(GetDlgItem(window, IdStartup), BM_SETCHECK, enabled ? BST_CHECKED : BST_UNCHECKED, 0);
+    EnableWindow(GetDlgItem(window, IdStartup), error == ERROR_SUCCESS || error == ERROR_FILE_NOT_FOUND);
+}
+void changeStartup() {
+    bool enable = SendMessageW(GetDlgItem(window, IdStartup), BM_GETCHECK, 0, 0) == BST_CHECKED;
+    HKEY key{};
+    auto error = enable
+        ? RegCreateKeyExW(HKEY_CURRENT_USER, startup::RunKey, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &key, nullptr)
+        : RegOpenKeyExW(HKEY_CURRENT_USER, startup::RunKey, 0, KEY_SET_VALUE, &key);
+    if (error == ERROR_SUCCESS) { error = startup::setEnabled(key, executablePath, enable); RegCloseKey(key); }
+    else if (!enable && error == ERROR_FILE_NOT_FOUND) error = ERROR_SUCCESS;
+    refreshStartup();
+    if (error != ERROR_SUCCESS) {
+        wchar_t reason[512]{};
+        FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr,
+                       static_cast<DWORD>(error), 0, reason, static_cast<DWORD>(std::size(reason)), nullptr);
+        auto message = L"Could not change Start with Windows.\n\n" + std::wstring(reason) +
+            L"\nWindows error: " + std::to_wstring(error);
+        MessageBoxW(window, message.c_str(), L"Arena HDR", MB_OK | MB_ICONERROR);
+    } else saveSettings();
+}
+void start(bool test, bool waitForDevice = false) {
     if (running) return;
     stop();
     int index = static_cast<int>(SendMessageW(monitorControl, CB_GETCURSEL, 0, 0));
@@ -247,7 +291,7 @@ void start(bool test) {
     quitWorker = false; running = true;
     publish(test ? L"Connecting to Arena 7..." : L"Starting capture...");
     auto backend = SendMessageW(GetDlgItem(window, IdCapture), CB_GETCURSEL, 0, 0) == 1 ? CaptureBackend::WindowsGraphicsCapture : CaptureBackend::Borderless;
-    worker = std::thread(run, test ? nullptr : displays[index].handle, preview, test, backend);
+    worker = std::thread(run, test ? nullptr : displays[index].handle, preview, test, backend, waitForDevice);
 }
 void updateUi() {
     std::wstring text, detail; Colors colors;
@@ -269,14 +313,22 @@ void updateUi() {
     }
 }
 void tray(bool add) {
+    if (add && trayInstalled) return;
     NOTIFYICONDATAW n{}; n.cbSize = sizeof(n); n.hWnd = window; n.uID = 1;
     if (add) {
         n.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP; n.uCallbackMessage = TrayMessage;
-        n.hIcon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(1)); wcscpy_s(n.szTip, L"Arena HDR - click to open");
+        n.hIcon = smallIcon; wcscpy_s(n.szTip, L"Arena HDR - click to open");
         trayInstalled = Shell_NotifyIconW(NIM_ADD, &n) != FALSE;
     } else if (trayInstalled) { Shell_NotifyIconW(NIM_DELETE, &n); trayInstalled = false; }
 }
 LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
+    if (TaskbarCreated && msg == TaskbarCreated) {
+        if (trayInstalled) {
+            trayInstalled = false; tray(true);
+            if (!trayInstalled) ShowWindow(h, SW_RESTORE);
+        }
+        return 0;
+    }
     switch (msg) {
     case WM_CREATE: {
         window = h;
@@ -328,6 +380,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         testControl = button(L"Test lights", 756, 390, 120, 44, IdTest);
         tip(testControl, L"Eight-second test: left base red, left rear green, right base blue, right rear amber. Ends in soft white.");
         HWND preview = control(L"BUTTON", L"Preview only", BS_AUTOCHECKBOX | WS_TABSTOP, 456, 454, 210, 25, IdPreview);
+        SendMessageW(preview, BM_SETCHECK, GetPrivateProfileIntW(L"Settings", L"PreviewOnly", 0, iniPath.c_str()) ? BST_CHECKED : BST_UNCHECKED, 0);
         tip(preview, L"Show captured colors without sending anything to your speakers.");
         HWND hold = control(L"BUTTON", L"Hold colors", BS_AUTOCHECKBOX | WS_TABSTOP, 684, 454, 188, 25, IdHold);
         tip(hold, L"Freeze and repeat the last output so you can compare the swatches to the real lights. Adjustments pause while held.");
@@ -335,10 +388,14 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         SendMessageW(bars, BM_SETCHECK, trimBars ? BST_CHECKED : BST_UNCHECKED, 0);
         HWND swap = control(L"BUTTON", L"Swap left / right", BS_AUTOCHECKBOX | WS_TABSTOP, 684, 492, 188, 25, IdSwap);
         SendMessageW(swap, BM_SETCHECK, swapSides ? BST_CHECKED : BST_UNCHECKED, 0);
-        statusControl = label(L"", 472, 556, 384, 46, valueFont);
-        detailControl = label(L"", 472, 608, 384, 46, smallFont);
-        label(L"Disable Arena 7 in GG Prism before syncing.", 26, 688, 440, 24, smallFont);
-        label(L"Minimize to tray  \u00b7  Close to stop", 506, 688, 368, 24, smallFont, SS_RIGHT);
+        HWND startupControl = control(L"BUTTON", L"Start with Windows", BS_AUTOCHECKBOX | WS_TABSTOP, 456, 530, 220, 25, IdStartup);
+        tip(startupControl, L"Launch in the tray and start screen sync when you sign in. Uses your saved settings, including Preview only. Applies to this Windows user.");
+        label(L"In tray, with screen sync", 684, 534, 188, 22, smallFont);
+        refreshStartup();
+        statusControl = label(L"", 472, 594, 384, 46, valueFont);
+        detailControl = label(L"", 472, 646, 384, 46, smallFont);
+        label(L"Disable Arena 7 in GG Prism before syncing.", 26, 726, 440, 24, smallFont);
+        label(L"Minimize to tray  \u00b7  Close to stop", 506, 726, 368, 24, smallFont, SS_RIGHT);
         SetTimer(h, 1, 100, nullptr); updateUi(); return 0;
     }
     case WM_HSCROLL:
@@ -355,6 +412,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
                 MessageBoxW(h, L"Could not open your browser. Visit https://ko-fi.com/ilyamezerowsky to support the project.", L"Donate on Ko-fi", MB_OK | MB_ICONINFORMATION);
             break;
         case IdStart: start(false); break;
+        case IdStartup: changeStartup(); break;
         case IdTest: start(true); break;
         case IdStop: stop(); break;
         case IdBars: trimBars = SendMessageW(GetDlgItem(h, IdBars), BM_GETCHECK, 0, 0) == BST_CHECKED; break;
@@ -380,7 +438,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         HDC dc = reinterpret_cast<HDC>(wp); HWND child = reinterpret_cast<HWND>(lp);
         RECT r{}; GetWindowRect(child, &r); MapWindowPoints(nullptr, h, reinterpret_cast<POINT*>(&r), 2);
         bool onCard = (r.left < scaled(434) && r.top >= scaled(116) && r.top < scaled(662)) ||
-            (r.left >= scaled(452) && ((r.top >= scaled(116) && r.top < scaled(366)) || (r.top >= scaled(540) && r.top < scaled(666))));
+            (r.left >= scaled(452) && ((r.top >= scaled(116) && r.top < scaled(366)) || (r.top >= scaled(578) && r.top < scaled(704))));
         SetBkColor(dc, onCard ? ui::Surface : ui::Canvas);
         SetTextColor(dc, reinterpret_cast<HFONT>(SendMessageW(child, WM_GETFONT, 0, 0)) == smallFont ? ui::Muted : ui::Ink);
         return reinterpret_cast<LRESULT>(onCard ? surface : background);
@@ -391,9 +449,9 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         { std::scoped_lock lock(stateMutex); colors = latest; }
         RECT client{}; GetClientRect(h, &client); FillRect(dc, &client, background);
         for (RECT card : {scaledRect(24, 116, 434, 314), scaledRect(24, 330, 434, 662),
-                          scaledRect(452, 116, 876, 366), scaledRect(452, 540, 876, 666)})
+                          scaledRect(452, 116, 876, 366), scaledRect(452, 578, 876, 704)})
             ui::rounded(dc, card, ui::Surface, ui::Line, scaled(20));
-        DrawIconEx(dc, scaled(26), scaled(30), LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(1)), scaled(48), scaled(48), 0, nullptr, DI_NORMAL);
+        DrawIconEx(dc, scaled(26), scaled(30), headerIcon, scaled(48), scaled(48), 0, nullptr, DI_NORMAL);
         SelectObject(dc, valueFont); SetBkMode(dc, TRANSPARENT);
         for (int side = 0; side < 2; ++side) {
             int x = 472 + side * 200;
@@ -416,6 +474,9 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_SIZE: if (wp == SIZE_MINIMIZED) { tray(true); if (trayInstalled) ShowWindow(h, SW_HIDE); } return 0;
     case TrayMessage:
         if (lp == WM_LBUTTONDBLCLK || lp == WM_LBUTTONUP || lp == WM_RBUTTONUP) { ShowWindow(h, SW_RESTORE); SetForegroundWindow(h); tray(false); } return 0;
+    case WM_ACTIVATE: if (LOWORD(wp) != WA_INACTIVE) refreshStartup(); break;
+    case WM_QUERYENDSESSION: saveSettings(); return TRUE;
+    case WM_ENDSESSION: if (wp) { stop(); tray(false); } return 0;
     case WM_CLOSE: saveSettings(); stop(); DestroyWindow(h); return 0;
     case WM_DESTROY:
         tray(false); KillTimer(h, 1);
@@ -503,7 +564,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     uiDpi = static_cast<int>(GetDpiForSystem());
     // Fit the fixed layout to the available work area, including at high scale.
     RECT work{}; SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
-    uiDpi = std::min({uiDpi, MulDiv(work.right - work.left - 32, 96, 900), MulDiv(work.bottom - work.top - 64, 96, 724)});
+    uiDpi = std::min({uiDpi, MulDiv(work.right - work.left - 32, 96, 900), MulDiv(work.bottom - work.top - 64, 96, 762)});
     uiDpi = std::max(uiDpi, 64);
     int argc = 0; auto argv = CommandLineToArgvW(GetCommandLineW(), &argc);
     if (argc >= 3 && std::wstring(argv[1]) == L"--gpu-test") {
@@ -519,23 +580,37 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
         return diagnose(path, mode == L"--capture-test" || bench, mode == L"--lighting-test", bench,
                         mode == L"--benchmark-wgc" ? CaptureBackend::WindowsGraphicsCapture : CaptureBackend::Borderless);
     }
+    bool startupLaunch = argc == 2 && std::wstring(argv[1]) == L"--startup";
     LocalFree(argv);
     HANDLE mutex = CreateMutexW(nullptr, TRUE, L"Local\\ArenaHDR-Desktop-App");
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        if (HWND existing = FindWindowW(L"ArenaHDR", nullptr)) { ShowWindow(existing, SW_RESTORE); SetForegroundWindow(existing); PostMessageW(existing, TrayMessage, 0, WM_LBUTTONUP); }
+        if (!startupLaunch) {
+            if (HWND existing = FindWindowW(L"ArenaHDR", nullptr)) { ShowWindow(existing, SW_RESTORE); SetForegroundWindow(existing); PostMessageW(existing, TrayMessage, 0, WM_LBUTTONUP); }
+        }
         if (mutex) CloseHandle(mutex); return 0;
     }
     INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_BAR_CLASSES}; InitCommonControlsEx(&controls);
     loadSettings();
+    LoadIconMetric(instance, MAKEINTRESOURCEW(1), LIM_SMALL, &smallIcon);
+    LoadIconMetric(instance, MAKEINTRESOURCEW(1), LIM_LARGE, &largeIcon);
+    LoadIconWithScaleDown(instance, MAKEINTRESOURCEW(1), scaled(48), scaled(48), &headerIcon);
     WNDCLASSW wc{}; wc.lpfnWndProc = wndProc; wc.hInstance = instance; wc.lpszClassName = L"ArenaHDR";
-    wc.hCursor = LoadCursorW(nullptr, IDC_ARROW); wc.hIcon = LoadIconW(instance, MAKEINTRESOURCEW(1));
+    wc.hCursor = LoadCursorW(nullptr, IDC_ARROW); wc.hIcon = largeIcon;
     RegisterClassW(&wc);
-    RECT r = scaledRect(0, 0, 900, 724); AdjustWindowRect(&r, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, FALSE);
+    RECT r = scaledRect(0, 0, 900, 762); AdjustWindowRect(&r, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, FALSE);
     HWND h = CreateWindowExW(0, wc.lpszClassName, L"Arena HDR", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_CLIPCHILDREN,
                               CW_USEDEFAULT, CW_USEDEFAULT, r.right - r.left, r.bottom - r.top, nullptr, nullptr, instance, nullptr);
     if (!h) { if (mutex) CloseHandle(mutex); return 1; }
-    ShowWindow(h, show);
+    SendMessageW(h, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(smallIcon));
+    SendMessageW(h, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(largeIcon));
+    if (startupLaunch) {
+        start(false, true);
+        tray(true);
+        if (!trayInstalled) ShowWindow(h, SW_SHOWNORMAL);
+    } else ShowWindow(h, show);
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) { if (!IsDialogMessageW(h, &msg)) { TranslateMessage(&msg); DispatchMessageW(&msg); } }
-    stop(); if (mutex) CloseHandle(mutex); return static_cast<int>(msg.wParam);
+    stop();
+    for (HICON icon : {smallIcon, largeIcon, headerIcon}) if (icon) DestroyIcon(icon);
+    if (mutex) CloseHandle(mutex); return static_cast<int>(msg.wParam);
 }

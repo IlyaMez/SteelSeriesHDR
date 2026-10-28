@@ -1,10 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <rect width="256" height="256" rx="40" fill="#182638"/>
-  <g fill="none" stroke-width="15" stroke-linecap="round">
-    <path d="M50 66 Q0 128 50 190" stroke="#38c4ad"/>
-    <path d="M206 66 Q256 128 206 190" stroke="#ff9c66"/>
+  <title>Arena HDR — light beyond the screen</title>
+  <defs>
+    <linearGradient id="tile" x2="0.8" y2="1">
+      <stop stop-color="#213c58"/><stop offset="1" stop-color="#0b1525"/>
+    </linearGradient>
+    <linearGradient id="spectrum" x1="0" y1="1" x2="1" y2="0">
+      <stop stop-color="#40e0c4"/><stop offset="0.48" stop-color="#61bdf5"/>
+      <stop offset="1" stop-color="#ffac7d"/>
+    </linearGradient>
+  </defs>
+  <rect x="5" y="5" width="246" height="246" rx="54" fill="url(#tile)" stroke="#35516b" stroke-width="2"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M38 86 Q20 128 38 170" stroke="#40e0c4" stroke-width="24" opacity="0.10"/>
+    <path d="M218 86 Q236 128 218 170" stroke="#ffac7d" stroke-width="24" opacity="0.10"/>
+    <path d="M38 86 Q20 128 38 170" stroke="#40e0c4" stroke-width="10"/>
+    <path d="M218 86 Q236 128 218 170" stroke="#ffac7d" stroke-width="10"/>
   </g>
-  <g fill="none" stroke="white" stroke-width="12">
-    <path d="M73 80 H183 V162 H73 Z M128 163 V184 M101 186 H155"/>
-  </g>
+  <rect x="60" y="65" width="136" height="107" rx="17" fill="#eef8ff"/>
+  <rect x="70" y="75" width="116" height="87" rx="8" fill="url(#spectrum)"/>
+  <path d="M78 143 L123 97 L149 123 L178 94 V154 H78Z" fill="#132b46" opacity="0.18"/>
+  <path d="M128 177 V193 M103 197 H153" fill="none" stroke="#eef8ff" stroke-width="10" stroke-linecap="round"/>
 </svg>

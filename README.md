@@ -18,7 +18,11 @@ A small native Windows app that follows your screen's colors and drives the four
 
 Minimize to the system tray; click the tray icon or launch the app again to reopen it. **Stop** or closing the window ends capture and lighting updates. The speakers keep their last color. Re-enable Arena 7 in Prism to return to GG lighting; the app does not read or restore the previous onboard effect.
 
-Settings are saved beside the EXE in `ArenaHDR.ini`. Nothing is installed as a driver, service, or startup task. The portable preview is unsigned.
+Settings are saved beside the EXE in `ArenaHDR.ini`. The portable preview is unsigned; no driver or service is installed.
+
+Enable **Start with Windows** to launch in the tray and begin screen sync when you sign in. It is off by default, applies only to your Windows user, and uses your saved display, capture, color, and **Preview only** settings. If the speakers are still connecting, it retries until they are ready or you press Stop. Uncheck the option to remove automatic startup. The option takes effect immediately; lighting settings are saved when you close the app or sign out.
+
+Keep the app in a permanent folder before enabling startup. If you move it, open it from the new location and enable the option again. Disable startup before deleting the portable folder. If you disable Arena HDR in Windows Startup apps, re-enable it there to allow launch at sign-in. Startup uses the current user's [Windows Run entry](https://learn.microsoft.com/en-us/windows/win32/setupapi/run-and-runonce-registry-keys), with no administrator privileges required.
 
 ## Make it look right
 
@@ -70,7 +74,7 @@ Install Visual Studio's **Desktop development with C++** workload and Windows SD
 
 The build uses the static C++ runtime; the app requires no Python, .NET, NuGet packages, or separate Visual C++ runtime installation. `VERSION` supplies the UI and executable version. `assets/arena.ico` is checked in; `tools/Generate-Icon.ps1` regenerates the original artwork if needed.
 
-`-Test` runs 70 CPU assertions and a real GPU test with synthetic FP16/SDR textures and all display rotation branches. CI uses `-Test -SkipGpuTests`, since hosted runners are not a substitute for testing the capture path on a desktop GPU. CI builds and packages artifacts; it does not publish releases.
+`-Test` runs 70 CPU assertions, startup registration tests in an isolated temporary registry key, and a real GPU test with synthetic FP16/SDR textures and all display rotation branches. The startup tests do not change your actual startup apps. CI uses `-Test -SkipGpuTests`, since hosted runners are not a substitute for testing the capture path on a desktop GPU. CI builds and packages artifacts; it does not publish releases.
 
 Create the portable ZIP and SHA-256 checksum after a successful build:
 
@@ -99,7 +103,7 @@ There is also `--lighting-test output.txt`, which sends one four-color command a
 
 Bug reports should include your Windows version, GPU/driver, capture mode, HDR setting, app version, and a description of expected versus actual lighting. See [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md), and [the release guide](docs/RELEASING.md).
 
-License selection is pending. See [THIRD_PARTY.md](THIRD_PARTY.md) for protocol attribution and SDK notices.
+Arena HDR is licensed under the [MIT License](LICENSE). See [THIRD_PARTY.md](THIRD_PARTY.md) for protocol attribution and SDK notices.
 
 Arena HDR is an independent project, unaffiliated with or endorsed by SteelSeries. SteelSeries and Arena are trademarks of their respective owners.
 

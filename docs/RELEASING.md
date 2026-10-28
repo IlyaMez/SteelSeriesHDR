@@ -1,8 +1,8 @@
 # Preparing a release
 
-The initial target is `v0.1.0-preview.1`. The preview is portable Windows x64 software for Arena 7; it is not a replacement firmware or a driver.
+The preview is portable Windows x64 software for Arena 7; it is not a replacement firmware or a driver.
 
-1. Select the project's license and add `LICENSE` before presenting the repository as open source. Update the license line in `README.md`. Packaging includes `LICENSE` automatically when present.
+1. Verify `LICENSE` and third-party attribution are current. Packaging includes `LICENSE` automatically when present.
 2. Update `VERSION` and `CHANGELOG.md` together. `build.ps1` generates matching UI and executable metadata.
 3. Close the running app and run `./build.ps1 -Test` on a Windows desktop with a Direct3D 11 GPU. Check the UI, test pattern, HDR capture, stop, and tray restore on hardware.
 4. Run `./package.ps1`. It writes `dist/ArenaHDR-<version>-windows-x64.zip` and `.zip.sha256`, with an allowlist and hash verification. Inspect the resulting ZIP; it must contain no settings, diagnostics, test captures, or compiler output except the app EXE.

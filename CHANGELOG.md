@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-preview.2 — 2026-10-28
+
+- Refreshed screen-and-ambient-light icon, with nine sizes for Explorer, the taskbar, the tray, and the app header.
+- Optional Start with Windows setting: launch in the tray and start sync with saved settings at sign-in, without administrator privileges.
+- Remember Preview only, retry speakers that are still connecting at sign-in, and restore the tray icon after Explorer restarts.
+- Startup registration tests cover quoted Unicode paths, persistence, removal, and failure handling without changing real startup entries.
+- Released under the MIT license, with the Windows controls manifest embedded in the standalone executable.
+
 ## 0.1.0-preview.1 — 2026-10-17
 
 First portable Windows x64 preview for SteelSeries Arena 7.

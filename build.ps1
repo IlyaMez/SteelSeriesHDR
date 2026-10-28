@@ -26,9 +26,11 @@ if errorlevel 1 exit /b 1
 cd /d "$root"
 rc /nologo /I "$out" /fo "$out\app.res" src\app.rc
 if errorlevel 1 exit /b 1
-cl /nologo /std:c++20 /EHsc /W4 /WX /O2 /MT /utf-8 /DUNICODE /D_UNICODE /DNOMINMAX /DWIN32_LEAN_AND_MEAN /Isrc /I"$out" src\main.cpp src\capture.cpp src\arena.cpp "$out\app.res" /Fo"$out\\" /Fe"$out\ArenaHDR.exe" /link /SUBSYSTEM:WINDOWS d3d11.lib dxgi.lib d3dcompiler.lib windowsapp.lib setupapi.lib hid.lib comctl32.lib shell32.lib user32.lib gdi32.lib
+cl /nologo /std:c++20 /EHsc /W4 /WX /O2 /MT /utf-8 /DUNICODE /D_UNICODE /DNOMINMAX /DWIN32_LEAN_AND_MEAN /Isrc /I"$out" src\main.cpp src\capture.cpp src\arena.cpp "$out\app.res" /Fo"$out\\" /Fe"$out\ArenaHDR.exe" /link /MANIFEST:EMBED /SUBSYSTEM:WINDOWS d3d11.lib dxgi.lib d3dcompiler.lib windowsapp.lib setupapi.lib hid.lib comctl32.lib shell32.lib user32.lib gdi32.lib advapi32.lib
 if errorlevel 1 exit /b 1
 cl /nologo /std:c++20 /EHsc /W4 /WX /O2 /MT /utf-8 /DNOMINMAX /Isrc tests\tests.cpp /Fo"$out\tests.obj" /Fe"$out\ArenaHDR.Tests.exe"
+if errorlevel 1 exit /b 1
+cl /nologo /std:c++20 /EHsc /W4 /WX /O2 /MT /utf-8 /DUNICODE /D_UNICODE /DNOMINMAX /DWIN32_LEAN_AND_MEAN /Isrc tests\startup_tests.cpp /Fo"$out\startup_tests.obj" /Fe"$out\ArenaHDR.StartupTests.exe" /link advapi32.lib
 exit /b %errorlevel%
 "@
 $batchPath = Join-Path $out 'compile.cmd'
@@ -38,6 +40,8 @@ if ($LASTEXITCODE -ne 0) { throw "Build failed ($LASTEXITCODE)." }
 if ($Test) {
     & (Join-Path $out 'ArenaHDR.Tests.exe')
     if ($LASTEXITCODE -ne 0) { throw 'Tests failed.' }
+    & (Join-Path $out 'ArenaHDR.StartupTests.exe')
+    if ($LASTEXITCODE -ne 0) { throw 'Startup registration tests failed.' }
     if (-not $SkipGpuTests) {
         $gpuResult = Join-Path $out 'gpu-test.txt'
         $gpuProcess = Start-Process -FilePath (Join-Path $out 'ArenaHDR.exe') -ArgumentList ('--gpu-test "' + $gpuResult + '"') -WindowStyle Hidden -PassThru -Wait
