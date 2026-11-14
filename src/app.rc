@@ -16,7 +16,7 @@ BEGIN
         BLOCK "040904B0"
         BEGIN
             VALUE "CompanyName", "Ilya Mezerowsky"
-            VALUE "FileDescription", "Arena HDR - screen lighting for Arena 7"
+            VALUE "FileDescription", "Arena HDR - screen lighting for Arena 7 and Arena 9"
             VALUE "FileVersion", ARENA_VERSION
             VALUE "InternalName", "ArenaHDR"
             VALUE "LegalCopyright", "Copyright 2026 Ilya Mezerowsky"

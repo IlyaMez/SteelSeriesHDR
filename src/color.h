@@ -84,9 +84,9 @@ inline LinearColors sampleZones(const std::vector<Pixel>& pixels, int width, int
     }
     return sums;
 }
-// Arena 7 protocol documented by szamski/Prismatic-for-macOS (see THIRD_PARTY.md).
+// Arena 7 / Arena 9 protocol documented by szamski/Prismatic-for-macOS (see THIRD_PARTY.md).
 inline std::vector<uint8_t> lightingReport(const Colors& colors, size_t reportLength, int brightness = 10) {
-    if (reportLength != 64 && reportLength != 65) throw std::invalid_argument("Unexpected Arena 7 output report length");
+    if (reportLength != 64 && reportLength != 65) throw std::invalid_argument("Unexpected Arena output report length");
     std::vector<uint8_t> report(reportLength, 0);
     report[0] = 0x06; report[1] = 0xA1;
     for (size_t i = 0; i < colors.size(); ++i) {

@@ -68,7 +68,7 @@ void run(HMONITOR monitor, bool preview, bool test, CaptureBackend backend, bool
                 try { speaker.connect(); break; }
                 catch (const std::exception& e) {
                     if (!waitForDevice) throw;
-                    publish(errorText(e), L"Waiting for Arena 7 after sign-in. Retrying every 2 seconds; Stop cancels.");
+                    publish(errorText(e), L"Waiting for speakers after sign-in. Retrying every 2 seconds; Stop cancels.");
                     for (int i = 0; i < 20 && !quitWorker; ++i)
                         std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 }
@@ -79,7 +79,7 @@ void run(HMONITOR monitor, bool preview, bool test, CaptureBackend backend, bool
             }
         }
         if (test) {
-            publish(L"Speaker test: left base red, left rear green, right base blue, right rear amber.", L"Test runs for 8 seconds; then leaves a soft white light.");
+            publish(std::wstring(speaker.modelNameW()) + L" test: left base red, left rear green, right base blue, right rear amber.", L"Test runs for 8 seconds; then leaves a soft white light.");
             Colors colors{{{180, 0, 0}, {0, 180, 0}, {0, 0, 180}, {180, 90, 0}}};
             auto end = Clock::now() + std::chrono::seconds(8);
             while (!quitWorker && Clock::now() < end) {
@@ -138,7 +138,7 @@ void run(HMONITOR monitor, bool preview, bool test, CaptureBackend backend, bool
                     try {
                         capture = std::make_unique<Capture>(monitor, backend);
                         lastFrame = now; first = true; haveZones = false; sampler.reset();
-                        publish(preview ? L"Preview only: capturing screen colors." : L"Screen sync running.", capture->description());
+                        publish(preview ? L"Preview only: capturing screen colors." : (std::wstring(speaker.modelNameW()) + L" screen sync running.").c_str(), capture->description());
                     } catch (const winrt::hresult_error& e) {
                         publish(L"Capture unavailable: " + std::wstring(e.message()), L"Retrying in 2 seconds. Stop and select Compatibility if needed.");
                         retry = now + std::chrono::seconds(2);
@@ -289,7 +289,7 @@ void start(bool test, bool waitForDevice = false) {
     holdColors = false; testing = test;
     SendMessageW(GetDlgItem(window, IdHold), BM_SETCHECK, BST_UNCHECKED, 0);
     quitWorker = false; running = true;
-    publish(test ? L"Connecting to Arena 7..." : L"Starting capture...");
+    publish(test ? L"Connecting to speakers..." : L"Starting capture...");
     auto backend = SendMessageW(GetDlgItem(window, IdCapture), CB_GETCURSEL, 0, 0) == 1 ? CaptureBackend::WindowsGraphicsCapture : CaptureBackend::Borderless;
     worker = std::thread(run, test ? nullptr : displays[index].handle, preview, test, backend, waitForDevice);
 }
@@ -394,7 +394,7 @@ LRESULT CALLBACK wndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         refreshStartup();
         statusControl = label(L"", 472, 594, 384, 46, valueFont);
         detailControl = label(L"", 472, 646, 384, 46, smallFont);
-        label(L"Disable Arena 7 in GG Prism before syncing.", 26, 726, 440, 24, smallFont);
+        label(L"Disable Arena in GG Prism before syncing.", 26, 726, 440, 24, smallFont);
         label(L"Minimize to tray  \u00b7  Close to stop", 506, 726, 368, 24, smallFont, SS_RIGHT);
         SetTimer(h, 1, 100, nullptr); updateUi(); return 0;
     }
@@ -496,8 +496,9 @@ int diagnose(const std::wstring& path, bool captureFrames, bool lightingTest, bo
     std::ofstream out(path); if (!out) return 2;
     try {
         winrt::init_apartment(winrt::apartment_type::multi_threaded);
-        auto devices = findDevices(); out << "Arena 7 HID collections: " << devices.size() << '\n';
-        for (const auto& d : devices) out << "usagePage=0x" << std::hex << d.usagePage << " usage=0x" << d.usage << std::dec << " outputBytes=" << d.outputBytes << '\n';
+        auto devices = findDevices(); out << "Arena HID collections: " << devices.size() << '\n';
+        for (const auto& d : devices) out << "model=" << deviceModelName(d.productId) << " pid=0x" << std::hex << d.productId
+                                         << " usagePage=0x" << d.usagePage << " usage=0x" << d.usage << std::dec << " outputBytes=" << d.outputBytes << '\n';
         auto screens = monitors(); out << "Monitors: " << screens.size() << '\n';
         for (const auto& m : screens) out << winrt::to_string(m.name) << '\n';
         if (lightingTest) {

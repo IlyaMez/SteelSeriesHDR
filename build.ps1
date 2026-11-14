@@ -1,4 +1,4 @@
-param([switch]$Test, [switch]$SkipGpuTests)
+param([switch]$Test, [switch]$SkipGpuTests, [switch]$Sign)
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
@@ -37,10 +37,18 @@ $batchPath = Join-Path $out 'compile.cmd'
 [System.IO.File]::WriteAllText($batchPath, $batch, [System.Text.UTF8Encoding]::new($false))
 & $env:ComSpec /d /c $batchPath
 if ($LASTEXITCODE -ne 0) { throw "Build failed ($LASTEXITCODE)." }
+if ($Sign) {
+    $signtoolPath = Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits" -Recurse -Filter "signtool.exe" -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -like "*\x64\*" } | Select-Object -First 1 -ExpandProperty FullName
+    if (-not $signtoolPath) { throw 'signtool.exe was not found in Windows Kits.' }
+    Write-Host "Signing $out\ArenaHDR.exe..."
+    & $signtoolPath sign /a /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 (Join-Path $out 'ArenaHDR.exe')
+    if ($LASTEXITCODE -ne 0) { throw 'Signing failed.' }
+}
 if ($Test) {
-    & (Join-Path $out 'ArenaHDR.Tests.exe')
+    & $env:ComSpec /d /c (Join-Path $out 'ArenaHDR.Tests.exe')
     if ($LASTEXITCODE -ne 0) { throw 'Tests failed.' }
-    & (Join-Path $out 'ArenaHDR.StartupTests.exe')
+    & $env:ComSpec /d /c (Join-Path $out 'ArenaHDR.StartupTests.exe')
     if ($LASTEXITCODE -ne 0) { throw 'Startup registration tests failed.' }
     if (-not $SkipGpuTests) {
         $gpuResult = Join-Path $out 'gpu-test.txt'
