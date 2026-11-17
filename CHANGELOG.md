@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Added support for SteelSeries Arena 9 alongside Arena 7 (PID 0x1A05 and PID 0x1A00).
+- Dynamically detect connected speaker model and display model-aware status and diagnostics.
+
 ## 0.1.0-preview.2 — 2026-10-28
 
 - Refreshed screen-and-ambient-light icon, with nine sizes for Explorer, the taskbar, the tray, and the app header.

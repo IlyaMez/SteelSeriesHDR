@@ -1,10 +1,10 @@
 # Arena HDR
 
-**Screen-reactive lighting for SteelSeries Arena 7, with HDR left on.**
+**Screen-reactive lighting for SteelSeries Arena 7 and Arena 9, with HDR left on.**
 
-A small native Windows app that follows your screen's colors and drives the four Arena 7 lighting zones over USB. The rear lights follow the full left and right sides; the base lights accent the lower part of each side.
+A small native Windows app that follows your screen's colors and drives the four Arena lighting zones over USB. The rear lights follow the full left and right sides; the base lights accent the lower part of each side.
 
-**Preview release · Windows x64 · Arena 7 only**
+**Preview release · Windows x64 · Arena 7 & Arena 9**
 
 ![Arena HDR app window showing screen sync and lighting controls](assets/screenshot.jpg)
 
@@ -13,12 +13,12 @@ A small native Windows app that follows your screen's colors and drives the four
 ## Get started
 
 1. Extract the portable release ZIP into a writable folder and open **ArenaHDR.exe**. For a source checkout, [build it first](#build-from-source).
-2. Connect the Arena 7 speakers by **USB**.
-3. In **SteelSeries GG → Engine → Prism**, disable Arena 7 so two lighting controllers do not compete. Prefer this over exiting GG if you use Sonar.
+2. Connect your Arena 7 or Arena 9 speakers by **USB**.
+3. In **SteelSeries GG → Engine → Prism**, disable Arena so two lighting controllers do not compete. Prefer this over exiting GG if you use Sonar.
 4. Select your display and click **Test lights**. For eight seconds, the left base is red, left rear green, right base blue, and right rear amber. The test ends in soft white.
 5. Leave **Borderless** and **Vivid** selected, then click **Start screen sync**. Windows HDR can stay enabled.
 
-Minimize to the system tray; click the tray icon or launch the app again to reopen it. **Stop** or closing the window ends capture and lighting updates. The speakers keep their last color. Re-enable Arena 7 in Prism to return to GG lighting; the app does not read or restore the previous onboard effect.
+Minimize to the system tray; click the tray icon or launch the app again to reopen it. **Stop** or closing the window ends capture and lighting updates. The speakers keep their last color. Re-enable Arena in Prism to return to GG lighting; the app does not read or restore the previous onboard effect.
 
 Settings are saved beside the EXE in `ArenaHDR.ini`. The portable preview is unsigned; no driver or service is installed.
 
@@ -55,7 +55,7 @@ Requires **Windows 10 version 2004 or newer / Windows 11**, an x64 PC, and a Dir
 - Dolby Vision metadata is not decoded. Lighting follows Windows' composited pixels; Dolby Vision compatibility is not guaranteed.
 - Some exclusive-fullscreen games may need borderless fullscreen. Multi-GPU systems, suspend/resume, and HDR transitions still need broader hardware testing.
 
-If colors flicker, first check that GG Prism or another lighting controller is not also writing to Arena 7. If the physical lights differ from the previews, enable **Hold colors**, wait two seconds, and compare the rear colors. Include the rear hex values and the observed colors in a bug report. If a monitor is disconnected, restart the app to refresh the display list.
+If colors flicker, first check that GG Prism or another lighting controller is not also writing to Arena. If the physical lights differ from the previews, enable **Hold colors**, wait two seconds, and compare the rear colors. Include the rear hex values and the observed colors in a bug report. If a monitor is disconnected, restart the app to refresh the display list.
 
 ## Performance and privacy
 
@@ -76,7 +76,7 @@ Install Visual Studio's **Desktop development with C++** workload and Windows SD
 
 The build uses the static C++ runtime; the app requires no Python, .NET, NuGet packages, or separate Visual C++ runtime installation. `VERSION` supplies the UI and executable version. `assets/arena.ico` is checked in; `tools/Generate-Icon.ps1` regenerates the original artwork if needed.
 
-`-Test` runs 70 CPU assertions, startup registration tests in an isolated temporary registry key, and a real GPU test with synthetic FP16/SDR textures and all display rotation branches. The startup tests do not change your actual startup apps. CI uses `-Test -SkipGpuTests`, since hosted runners are not a substitute for testing the capture path on a desktop GPU. CI builds and packages artifacts; it does not publish releases.
+`-Test` runs 76 CPU assertions, startup registration tests in an isolated temporary registry key, and a real GPU test with synthetic FP16/SDR textures and all display rotation branches. The startup tests do not change your actual startup apps. CI uses `-Test -SkipGpuTests`, since hosted runners are not a substitute for testing the capture path on a desktop GPU. CI builds and packages artifacts; it does not publish releases.
 
 Create the portable ZIP and SHA-256 checksum after a successful build:
 

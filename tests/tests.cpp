@@ -1,9 +1,13 @@
+#include "arena.h"
+#undef near
+#undef far
 #include "color.h"
 #include "output_gate.h"
 #include "screen_sampler.h"
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <string>
 using namespace arena;
 int assertions = 0;
 void check(bool pass, const char* name) { ++assertions; if (!pass) throw std::runtime_error(name); }
@@ -46,6 +50,12 @@ int main() {
         check(lightingReport(colors, 65).size() == 65, "Windows report padding supported");
         threw = false; try { lightingReport(colors, 32); } catch (const std::invalid_argument&) { threw = true; }
         check(threw, "Unexpected HID descriptor rejected");
+        check(isSupportedDevice(0x1038, 0x1A00), "Arena 7 supported");
+        check(isSupportedDevice(0x1038, 0x1A05), "Arena 9 supported");
+        check(!isSupportedDevice(0x1038, 0x1234), "Other SteelSeries rejected");
+        check(!isSupportedDevice(0x046D, 0x1A00), "Non-SteelSeries rejected");
+        check(std::string(deviceModelName(0x1A00)) == "Arena 7", "Arena 7 model name");
+        check(std::string(deviceModelName(0x1A05)) == "Arena 9", "Arena 9 model name");
         OutputGate gate;
         check(gate.needsSend(colors, 0), "First lighting update always sent");
         gate.sent(colors, 0);
